@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>FloodPredictor</title>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <link href="{{ url_for('static', filename='img/favicon-2.png') }}" rel="icon" />
+ 
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,500,600,700,700i|Montserrat:300,400,500,600,700" rel="stylesheet" />
+ 
+    <!-- Bootstrap -->
+    <link href="{{ url_for('static', filename='lib/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet" />
+ 
+    <!-- Icon / animation libs -->
+    <link href="{{ url_for('static', filename='lib/font-awesome/css/font-awesome.min.css') }}" rel="stylesheet" />
+    <link href="{{ url_for('static', filename='lib/animate/animate.min.css') }}" rel="stylesheet" />
+    <link href="{{ url_for('static', filename='lib/ionicons/css/ionicons.min.css') }}" rel="stylesheet" />
+    <link href="{{ url_for('static', filename='lib/owlcarousel/assets/owl.carousel.min.css') }}" rel="stylesheet" />
+    <link href="{{ url_for('static', filename='lib/lightbox/css/lightbox.min.css') }}" rel="stylesheet" />
+ 
+    <!-- Main Stylesheet -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet" />
+ 
+    <style>
+      /* ── form inputs ── */
+      input[type="text"], select {
+        width: 100%; padding: 12px 20px; margin: 8px 0;
+        display: inline-block; border: 1px solid #ccc;
+        border-radius: 4px; box-sizing: border-box;
+      }
+      input[type="submit"] {
+        width: 100%; background-color: #4caf50; color: white;
+        padding: 14px 20px; margin: 8px 0; border: none;
+        border-radius: 4px; cursor: pointer;
+      }
+      input[type="submit"]:hover { background-color: #45a049; }
+ 
+      /* ── satellite image strip ── */
+      .sat-strip { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 16px; }
+      .sat-card  { text-align: center; }
+      .sat-card img {
+        width: 200px; height: 200px; object-fit: cover;
+        border: 3px solid #1bb1dc; border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,.18);
+      }
+      .sat-card .sat-label {
+        margin-top: 6px; font-size: 13px; font-weight: 600; color: #555;
+      }
+      .sat-placeholder {
+        width: 200px; height: 200px; border: 3px dashed #bbb;
+        border-radius: 8px; display: flex; align-items: center;
+        justify-content: center; color: #aaa; font-size: 13px;
+        background: #f8f8f8;
+      }
+ 
+      /* ── score bar ── */
+      .score-row  { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+      .score-label { min-width: 140px; font-weight: 600; font-size: 14px; color: #444; }
+      .score-bar-bg {
+        flex: 1; background: #e9ecef; border-radius: 20px; height: 18px; overflow: hidden;
+      }
+      .score-bar-fill {
+        height: 100%; border-radius: 20px;
+        transition: width .6s ease;
+      }
+      .bar-flood     { background: linear-gradient(90deg, #1bb1dc, #0069cc); }
+      .bar-landslide { background: linear-gradient(90deg, #f39c12, #e74c3c); }
+      .bar-cnn       { background: linear-gradient(90deg, #8e44ad, #3498db); }
+      .bar-weather   { background: linear-gradient(90deg, #27ae60, #1abc9c); }
+      .score-value { min-width: 50px; font-size: 14px; font-weight: 700; color: #333; }
+ 
+      /* ── method badge ── */
+      .method-badge {
+        display: inline-block; padding: 5px 14px; border-radius: 20px;
+        font-size: 12px; font-weight: 600; background: #eaf6ff; color: #1bb1dc;
+        border: 1px solid #b3dff7; margin-top: 10px;
+      }
+      .badge-fallback { background: #fff8e1; color: #e67e22; border-color: #ffd08a; }
+ 
+      /* ── prediction result ── */
+      .pred-safe   { color: #41cf2e; font-weight: 900; font-size: 42px; }
+      .pred-unsafe { color: #FF002e; font-weight: 900; font-size: 42px; }
+      .pred-conf   { font-size: 16px; color: #777; margin-top: -6px; }
+    </style>
+  </head>
+ 
+  <body>
+    <!-- ── Header ── -->
+    <header id="header">
+      <div id="topbar"><div class="container"><div class="social-links"></div></div></div>
+      <div class="container">
+        <div class="logo float-left">
+          <a href="index.html" class="scrollto">
+            <img style="margin-top:-5px;min-height:50px;"
+                 src="{{ url_for('static', filename='img/logo1.png') }}" alt="" class="img-fluid" />
+          </a>
+        </div>
+        <nav class="main-nav float-right d-none d-lg-block">
+          <ul>
+            <li><a href="index.html">Home</a></li>
+            <li><a href="plots.html">Plots</a></li>
+            <li><a href="heatmaps.html">Heatmaps</a></li>
+            <li><a href="satellite.html">Satellite</a></li>
+            <li class="active"><a href="predicts.html">Predict</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+ 
+    <main id="main">
+      <br /><br /><br /><br /><br />
+ 
+      <!-- ── City input form ── -->
+      <section id="services" class="section-bg">
+        <div class="container">
+          <header class="section-header">
+            <h3>Select City</h3>
+            <p>Enter any city name to run the CNN+RNN flood &amp; landslide prediction.</p>
+          </header>
+          <div class="row">
+            <div class="col-lg-12" align="center">
+              <form class="form-inline" method="POST" action="predicts.html" style="display:inline-block;">
+                <div class="form-group">
+                  <div class="input-group">
+                    <input type="text" name="city" placeholder="e.g. Mumbai, London, Jakarta …" />
+                  </div>
+                  <button type="submit" class="btn btn-default"
+                          style="margin-left:15px;height:50px;background-color:#1bb1dc;color:white;">
+                    Predict
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+ 
+      <!-- ── Results (only shown after form submission) ── -->
+      {% if pred is defined %}
+      {% set flood_pct      = ((flood_score|default(0))     * 100) | round | int %}
+      {% set landslide_pct  = ((landslide_score|default(0)) * 100) | round | int %}
+      {% set cnn_rnn_pct    = ((cnn_rnn_prob|default(0))    * 100) | round | int %}
+      {% set weather_pct    = ((weather_prob|default(0))    * 100) | round | int %}
+      {% set confidence_pct = ((confidence|default(0)) * 100) | round | int %}
+      <section id="results" class="section-bg" style="padding-top:0;">
+        <div class="container">
+          <header class="section-header">
+            <h3>{{ cityname }}</h3>
+          </header>
+          <br />
+ 
+          <!-- ── Main prediction result ── -->
+          <div class="row">
+            <div class="col-md-12 col-lg-12 wow bounceInUp" data-wow-duration="1.4s">
+              <div class="box" style="text-align:center;">
+                <div class="icon" style="background:#fceef3;">
+                  <i class="ion-ios-analytics-outline" style="color:#ff689b;"></i>
+                </div>
+                <h4>Flood &amp; Landslide Risk</h4>
+ 
+                {% if pred == "Safe" %}
+                  <p class="pred-safe">✓ Safe</p>
+                  <p class="pred-conf">Confidence: {{ confidence_pct }}%</p>
+                  <h6 style="font-size:17px;">No significant flood or landslide risk detected.</h6>
+                {% elif pred == "Unsafe" %}
+                  <p class="pred-unsafe">⚠ Unsafe</p>
+                  <p class="pred-conf">Confidence: {{ confidence_pct }}%</p>
+                  <h6 style="font-size:17px;color:#c0392b;">
+                    Elevated flood / landslide risk detected. Please take precautions.
+                  </h6>
+                {% else %}
+                  <p style="font-size:24px;color:#888;">Prediction unavailable</p>
+                {% endif %}
+ 
+                <!-- Method badge -->
+                {% if sat_available %}
+                  <span class="method-badge">
+                    🛰 CNN+RNN satellite + Weather RF (combined)
+                  </span>
+                {% else %}
+                  <span class="method-badge badge-fallback">
+                    ⚡ Weather RF only (satellite images unavailable)
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+          </div><!-- /row -->
+ 
+          <!-- ── NASA Satellite images ── -->
+          {% if sat_available %}
+          <div class="row" style="margin-top:30px;">
+            <div class="col-12">
+              <div class="box">
+                <h4 style="text-align:center;">
+                  🛰 Live NASA MODIS Satellite Images (input to CNN+RNN)
+                </h4>
+                <p style="text-align:center;color:#888;font-size:13px;">
+                  Three consecutive monthly images used as the temporal sequence for the CNN → LSTM pipeline.
+                </p>
+                <div class="sat-strip">
+                  <!-- Month -2 -->
+                  <div class="sat-card">
+                    {% if sat_img_1 %}
+                      <img src="data:image/jpeg;base64,{{ sat_img_1 }}" alt="Satellite image 1" />
+                    {% else %}
+                      <div class="sat-placeholder">No image</div>
+                    {% endif %}
+                    <div class="sat-label">📅 {{ sat_date_1 }}<br /><small style="color:#1bb1dc;">Month 1 (oldest)</small></div>
+                  </div>
+                  <!-- Month -1 -->
+                  <div class="sat-card">
+                    {% if sat_img_2 %}
+                      <img src="data:image/jpeg;base64,{{ sat_img_2 }}" alt="Satellite image 2" />
+                    {% else %}
+                      <div class="sat-placeholder">No image</div>
+                    {% endif %}
+                    <div class="sat-label">📅 {{ sat_date_2 }}<br /><small style="color:#1bb1dc;">Month 2</small></div>
+                  </div>
+                  <!-- Today -->
+                  <div class="sat-card">
+                    {% if sat_img_3 %}
+                      <img src="data:image/jpeg;base64,{{ sat_img_3 }}" alt="Satellite image 3" />
+                    {% else %}
+                      <div class="sat-placeholder">No image</div>
+                    {% endif %}
+                    <div class="sat-label">📅 {{ sat_date_3 }}<br /><small style="color:#1bb1dc;">Month 3 (latest)</small></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+ 
+          <!-- ── Risk score bars ── -->
+          <div class="row" style="margin-top:20px;">
+            <div class="col-md-12 col-lg-6 wow fadeIn" data-wow-duration="1.4s">
+              <div class="box">
+                <h4>Risk Scores</h4>
+                <!-- Flood score -->
+                <div class="score-row">
+                  <span class="score-label">🌊 Flood</span>
+                  <div class="score-bar-bg">
+                    <div class="score-bar-fill bar-flood" data-pct="{{ flood_pct }}"></div>
+                  </div>
+                  <span class="score-value">{{ flood_pct }}%</span>
+                </div>
+                <!-- Landslide score -->
+                <div class="score-row">
+                  <span class="score-label">⛰ Landslide</span>
+                  <div class="score-bar-bg">
+                    <div class="score-bar-fill bar-landslide" data-pct="{{ landslide_pct }}"></div>
+                  </div>
+                  <span class="score-value">{{ landslide_pct }}%</span>
+                </div>
+                <!-- CNN+RNN probability -->
+                {% if sat_available %}
+                <div class="score-row">
+                  <span class="score-label">🛰 CNN+RNN</span>
+                  <div class="score-bar-bg">
+                    <div class="score-bar-fill bar-cnn" data-pct="{{ cnn_rnn_pct }}"></div>
+                  </div>
+                  <span class="score-value">{{ cnn_rnn_pct }}%</span>
+                </div>
+                {% endif %}
+                <!-- Weather RF probability -->
+                <div class="score-row">
+                  <span class="score-label">🌤 Weather RF</span>
+                  <div class="score-bar-bg">
+                    <div class="score-bar-fill bar-weather" data-pct="{{ weather_pct }}"></div>
+                  </div>
+                  <span class="score-value">{{ weather_pct }}%</span>
+                </div>
+              </div>
+            </div>
+ 
+            <!-- ── Weather data ── -->
+            <div class="col-md-12 col-lg-6 wow fadeIn" data-wow-duration="1.4s">
+              <div class="box">
+                <h4>Live Weather (last 7 days)</h4>
+                <table class="table table-sm" style="font-size:15px;">
+                  <tbody>
+                    <tr><td>🌡 Avg Temperature</td>
+                        <td><strong>{{ temp }} °F</strong> &nbsp;/&nbsp; {{ temp_c }} °C</td></tr>
+                    <tr><td>🌡 Max Temperature</td>
+                        <td><strong>{{ maxt }} °F</strong> &nbsp;/&nbsp; {{ maxt_c }} °C</td></tr>
+                    <tr><td>💨 Wind Speed</td>
+                        <td><strong>{{ wspd }} mph</strong></td></tr>
+                    <tr><td>☁ Cloud Cover</td>
+                        <td><strong>{{ cloudcover }}%</strong></td></tr>
+                    <tr><td>🌧 Precipitation</td>
+                        <td><strong>{{ percip }} mm</strong></td></tr>
+                    <tr><td>💧 Humidity</td>
+                        <td><strong>{{ humidity }}%</strong></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div><!-- /row scores+weather -->
+ 
+        </div><!-- /container -->
+      </section>
+      {% endif %}
+      <!-- /results -->
+ 
+    </main>
+ 
+    <!-- ── Footer ── -->
+    <footer id="footer" class="section-bg" style="background-color:#f5f8fd;">
+      <div class="footer-top">
+        <div class="container">
+          <div class="row">
+            <div class="col-lg-6">
+              <div class="footer-info">
+                <a href="index.html" class="scrollto">
+                  <img style="margin-top:0;max-height:100px;"
+                       src="{{ url_for('static', filename='img/logo1.png') }}" alt="" class="img-fluid" />
+                </a>
+                <p style="padding-top:20px;">
+                  FloodPredictor uses CNN+RNN on live NASA satellite imagery combined with
+                  real-time weather data to predict flood and landslide risk anywhere in the world.
+                </p>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="form">
+                <h4>Send us a message</h4>
+                <form action="" method="post" role="form" class="contactForm">
+                  <div class="form-group">
+                    <input type="text" name="name" class="form-control" placeholder="Your Name"
+                           data-rule="minlen:4" data-msg="Please enter at least 4 chars" />
+                    <div class="validation"></div>
+                  </div>
+                  <div class="form-group">
+                    <input type="email" class="form-control" name="email" placeholder="Your Email"
+                           data-rule="email" data-msg="Please enter a valid email" />
+                    <div class="validation"></div>
+                  </div>
+                  <div class="form-group">
+                    <input type="text" class="form-control" name="subject" placeholder="Subject"
+                           data-rule="minlen:4" data-msg="Please enter at least 8 chars of subject" />
+                    <div class="validation"></div>
+                  </div>
+                  <div id="sendmessage">Your message has been sent. Thank you!</div>
+                  <div id="errormessage"></div>
+                  <div class="text-center">
+                    <button type="submit" title="Send Message">Send Message</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+ 
+    <!-- JS libs -->
+    <script src="{{ url_for('static', filename='lib/jquery/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/jquery/jquery-migrate.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/easing/easing.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/mobile-nav/mobile-nav.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/wow/wow.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/waypoints/waypoints.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/counterup/counterup.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/owlcarousel/owl.carousel.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/isotope/isotope.pkgd.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='lib/lightbox/js/lightbox.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='contactform/contactform.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+ 
+    <!-- Apply score bar widths from data-pct attributes (avoids Jinja2 inside CSS) -->
+    <script>
+      document.querySelectorAll('.score-bar-fill[data-pct]').forEach(function(el) {
+        el.style.width = el.getAttribute('data-pct') + '%';
+      });
+    </script>
+  </body>
+</html>
